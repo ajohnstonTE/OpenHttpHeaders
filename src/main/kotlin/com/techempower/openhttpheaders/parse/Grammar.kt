@@ -1,5 +1,316 @@
 package com.techempower.openhttpheaders.parse
 
-internal class Grammar {
+import com.techempower.openhttpheaders.ProcessingException
 
+// TODO CURRENT: Probably a good idea to use CharSpan here.
+
+internal abstract class Grammar<T> {
+  fun group(key: String): Grammar<T> =
+      GroupGrammar(this, key)
+
+  // By default, a capture will imply that it forms a scope, as it's generally
+  // going to be the case that a) the grammar accessed by the scope will
+  // contain groups or references and b) those references should not be
+  // propagated beyond that capture.
+  fun <S> capture(
+      function: (SingleCaptureContext<String>) -> S
+  ): ParsingGrammar<S> {
+    return CaptureGrammar(this, function)
+  }
+
+  // This will basically tell the grammar to return a wrapped version of itself
+  // that will map the wrapped instance to the context for captures.
+  operator fun not(): Grammar<*> = RefGrammar(this)
+
+  fun copy(): Grammar<T> = CopyGrammar(this)
+
+  internal abstract fun process(
+      input: String,
+      tokenizer: Tokenizer
+  ): Boolean
+}
+
+internal class SingleCaptureContext<T>(
+    val value: T,
+    val parseParameters: Map<String, Any>,
+    private val tokenizer: Tokenizer
+) {
+  operator fun get(group: String): SimpleCaptureContext {
+    val tokenizerContext = tokenizer.getContext(group)
+    return SimpleCaptureContext(
+        value = tokenizerContext?.text
+    )
+  }
+
+  operator fun <S> get(
+      group: String,
+      grammarHint: Grammar<S>
+  ): SingleCaptureContext<S?> {
+    val tokenizerContext = tokenizer.getContext(group)
+    return captureSingle(tokenizerContext, grammarHint)
+  }
+
+  operator fun <S> get(grammar: Grammar<S>): SingleCaptureContext<S?> {
+    val tokenizerContext = tokenizer.getContext(grammar)
+    return captureSingle(tokenizerContext, grammar)
+  }
+
+  @Suppress("MemberVisibilityCanBePrivate")
+  fun <S> getAll(
+      key: String,
+      grammarHint: Grammar<S>
+  ): List<SingleCaptureContext<S>> {
+    val tokenizerContexts = tokenizer.getAllContexts(key)
+    return captureAll(tokenizerContexts, grammarHint)
+  }
+
+  @Suppress("MemberVisibilityCanBePrivate")
+  fun <S> getAll(grammar: Grammar<S>): List<SingleCaptureContext<S>> {
+    val tokenizerContexts = tokenizer.getAllContexts(grammar)
+    return captureAll(tokenizerContexts, grammar)
+  }
+
+  private fun <T> captureSingle(
+      tokenizerContext: MutableCaptureContext?,
+      grammar: Grammar<T>
+  ): SingleCaptureContext<T?> {
+    val value: Any? = if (tokenizerContext == null) {
+      null
+    } else {
+      if (grammar is CaptureGrammar<*, *>) {
+        tokenizer.forSingleScope(grammar) {
+          grammar.doCapture(tokenizer, parseParameters)
+        }
+      } else {
+        tokenizerContext.text
+      }
+    }
+    @Suppress("UNCHECKED_CAST")
+    return SingleCaptureContext(
+        value = value as T?,
+        parseParameters,
+        tokenizer
+    )
+  }
+
+  private fun <T> captureAll(
+      tokenizerContexts: List<MutableCaptureContext>,
+      grammar: Grammar<T>
+  ): List<SingleCaptureContext<T>> {
+    return tokenizerContexts.map { tokenizerContext ->
+      val value: Any = if (grammar is CaptureGrammar<*, *>) {
+        val original = tokenizer.save()
+        tokenizer.restore(tokenizerContext.savePoint!!)
+        grammar.doCapture(tokenizer, parseParameters)
+        tokenizer.restore(original)
+      } else {
+        tokenizerContext.text
+      }
+      @Suppress("UNCHECKED_CAST")
+      SingleCaptureContext(
+          value = value as T,
+          parseParameters,
+          tokenizer
+      )
+    }
+  }
+
+  fun <S> values(grammar: Grammar<S>): List<S> =
+      getAll(grammar).map { it.value }
+
+  fun <S> values(
+      key: String,
+      grammarHint: Grammar<S>
+  ): List<S> =
+      getAll(key, grammarHint).map { it.value }
+}
+
+internal class SimpleCaptureContext(val value: String?)
+
+internal class MutableCaptureContext(
+    var text: String, // TODO CURRENT: Should be CharSpan in the end
+    var value: Any? = null,
+    var savePoint: TokenizerSavePoint? = null
+)
+
+internal class CharMatcherGrammar(private val charMatcher: CharMatcher) :
+    Grammar<String>() {
+  constructor(value: Char) : this(charMatcher { char(value) })
+
+  override fun process(input: String, tokenizer: Tokenizer): Boolean {
+    if (tokenizer.hasNext() && charMatcher.matches(tokenizer.peek())) {
+      tokenizer.advance()
+      return true
+    }
+    return false
+  }
+}
+
+internal class AndThenGrammar(
+    private val first: Grammar<*>,
+    private val second: Grammar<*>
+) : Grammar<String>() {
+  override fun process(input: String, tokenizer: Tokenizer): Boolean {
+    return first.process(input, tokenizer)
+        && second.process(input, tokenizer)
+  }
+}
+
+// The only grammar that will care about rolling back the tokenizer if
+// something does not match is the OrGrammar. For that reason, only the
+// OrGrammar should make a copy of the tokenizer. And only for the first node,
+// if the second node fails then it can just immediately fail upwards without
+// rolling back.
+internal class OrGrammar(
+    private val a: Grammar<*>,
+    private val b: Grammar<*>
+) : Grammar<String>() {
+  override fun process(input: String, tokenizer: Tokenizer): Boolean {
+    val savePoint = tokenizer.save()
+    if (a.process(input, tokenizer)) {
+      return true
+    }
+    tokenizer.restore(savePoint)
+    return b.process(input, tokenizer)
+  }
+}
+
+internal class CopyGrammar<T>(private val copy: Grammar<T>) : Grammar<T>() {
+  override fun process(input: String, tokenizer: Tokenizer): Boolean =
+      copy.process(input, tokenizer)
+}
+
+internal class RefGrammar<T>(private val ref: Grammar<T>) : Grammar<T>() {
+  @Suppress("DuplicatedCode")
+  override fun process(input: String, tokenizer: Tokenizer): Boolean {
+    val initialIndex = tokenizer.index
+    if (!ref.process(input, tokenizer)) {
+      return false
+    }
+    val context = MutableCaptureContext(
+        text = input.substring(initialIndex, tokenizer.index)
+    )
+    if (ref is CaptureGrammar<*, *>) {
+      tokenizer.forLatestScope(ref) {
+        context.savePoint = tokenizer.save()
+      }
+    }
+    tokenizer.addContext(
+        grammar = ref,
+        context = context
+    )
+    return true
+  }
+}
+
+internal class GroupGrammar<T>(
+    private val grouped: Grammar<T>,
+    private val group: String
+) : Grammar<T>() {
+  @Suppress("DuplicatedCode")
+  override fun process(input: String, tokenizer: Tokenizer): Boolean {
+    val initialIndex = tokenizer.index
+    if (!grouped.process(input, tokenizer)) {
+      return false
+    }
+    val context = MutableCaptureContext(
+        text = input.substring(initialIndex, tokenizer.index)
+    )
+    if (grouped is CaptureGrammar<*, *>) {
+      tokenizer.forLatestScope(grouped) {
+        context.savePoint = tokenizer.save()
+      }
+    }
+    tokenizer.addContext(
+        group = group,
+        grammar = grouped,
+        context = context
+    )
+    return true
+  }
+}
+
+internal abstract class ParsingGrammar<T> : Grammar<T>() {
+  abstract fun parse(
+      input: String,
+      parseParameters: Map<String, Any> = mapOf()
+  ): T
+}
+
+internal class CaptureGrammar<S, T>(
+    private val grammar: Grammar<S>,
+    private val captureFunction: (SingleCaptureContext<String>) -> T
+) : ParsingGrammar<T>() {
+  override fun process(input: String, tokenizer: Tokenizer): Boolean {
+    return tokenizer.addScope(this) {
+      val initialIndex = tokenizer.index
+      if (grammar.process(input, tokenizer)) {
+        tokenizer.setScopeValue(input.substring(initialIndex, tokenizer.index))
+        return@addScope true
+      }
+      return@addScope false
+    }
+  }
+
+  override fun parse(input: String, parseParameters: Map<String, Any>): T {
+    val tokenizer = Tokenizer(input, index = 0)
+    if (!process(input, tokenizer)
+        || (tokenizer.index != input.length)
+    ) {
+      throw ProcessingException(
+          "Could not fully parse \"$input\"," +
+              " parsed up to position ${tokenizer.index}.",
+      )
+    }
+    return tokenizer.forSingleScope(this) {
+      doCapture(tokenizer, parseParameters)
+    }
+  }
+
+  fun doCapture(tokenizer: Tokenizer, parseParameters: Map<String, Any>): T {
+    return captureFunction.invoke(
+        SingleCaptureContext(
+            // It matched so it definitely has a value
+            tokenizer.getScopeValue()!!,
+            parseParameters,
+            tokenizer
+        )
+    )
+  }
+}
+
+internal class XOrMoreGrammar<T>(
+    private val grammar: Grammar<T>,
+    private val lowerLimit: Int
+) : Grammar<T>() {
+
+  override fun process(input: String, tokenizer: Tokenizer): Boolean {
+    var count = 0
+    do {
+      val matched = grammar.process(input, tokenizer)
+      if (matched) {
+        count += 1
+      }
+    } while (matched)
+    return count >= lowerLimit
+  }
+}
+
+internal class RangeGrammar<T>(
+    private val grammar: Grammar<T>,
+    private val range: IntRange
+) : Grammar<T>() {
+  override fun process(input: String, tokenizer: Tokenizer): Boolean {
+    var count = 0
+    do {
+      val matched = grammar.process(input, tokenizer)
+      if (matched) {
+        count += 1
+      }
+      if (count < range.last) {
+        return false
+      }
+    } while (matched)
+    return count >= range.first
+  }
 }

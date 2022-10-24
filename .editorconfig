@@ -2,7 +2,10 @@
 indent_size = 2
 tab_width = 2
 ij_continuation_indent_size = 4
-ij_visual_guides = 80,100,120
+#ij_visual_guides = 80,100,120
+# IntelliJ's default is 79 and doesn't go away when editorconfig is present so
+# to prevent there from being two, just have this be 79 as well.
+ij_visual_guides = 79
 ij_kotlin_align_in_columns_case_branch = false
 ij_kotlin_align_multiline_binary_operation = false
 ij_kotlin_align_multiline_extends_list = false

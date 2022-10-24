@@ -5,6 +5,7 @@ package com.techempower.openhttpheaders
  * - [RFC 7231 Section 3.1.1.1](https://www.rfc-editor.org/rfc/rfc7231#section-3.1.1.1)
  * - [RFC 7230 Section 3.2.6](https://www.rfc-editor.org/rfc/rfc7230#section-3.2.6)
  * - [RFC 7230 Section 1.2](https://www.rfc-editor.org/rfc/rfc7230#section-1.2)
+ * - [RFC 7230 Section 3.2.3](https://www.rfc-editor.org/rfc/rfc7230#section-3.2.3)
  */
 internal class MediaTypeParser(private val qValueKey: String) {
 

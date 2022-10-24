@@ -1,14 +1,12 @@
 package com.techempower.openhttpheaders.parse
 
-import com.techempower.openhttpheaders.ProcessingException
-
-// Largely inspired by Guava: https://github.com/google/guava/blob/master/guava/src/com/google/common/base/CharMatcher.java
+// Partially inspired by Guava: https://github.com/google/guava/blob/master/guava/src/com/google/common/base/CharMatcher.java
 internal interface CharMatcher {
   fun matches(char: Char): Boolean
 
   companion object {
     val ASCII = charMatcher {
-      range('\u0000' to '\u007F')
+      range('\u0000'..'\u007F')
     }
 
     val NON_ASCII = charMatcher {
@@ -19,12 +17,12 @@ internal interface CharMatcher {
     }
 
     val NUMBERS = charMatcher {
-      range('0' to '9')
+      range('0'..'9')
     }
 
     val LETTERS = charMatcher {
-      range('a' to 'z')
-      range('A' to 'Z')
+      range('a'..'z')
+      range('A'..'Z')
     }
   }
 }
@@ -36,14 +34,8 @@ internal abstract class CharMatcherDsl {
 
   fun exclude(init: CharMatcherDsl.() -> Unit) = addDsl(init, true)
 
-  fun range(range: Pair<Char, Char>, endExclusive: Boolean = false) {
-    add(
-      RangeCharMatcher(
-        range.first,
-        range.second,
-        endExclusive
-      )
-    )
+  fun range(range: CharRange) {
+    add(RangeCharMatcher(range))
   }
 
   fun group(charMatcher: CharMatcher) {
@@ -273,24 +265,16 @@ private class CharMatcherCollapseState {
 }
 
 internal class RangeCharMatcher(
-  private val start: Char, end: Char, endExclusive: Boolean) : CharMatcher,
+  private val range: CharRange) : CharMatcher,
   Collapsible {
 
-  private val effectiveEnd = end - (if (endExclusive) 1 else 0)
-
-  init {
-    if (start > effectiveEnd) {
-      throw ProcessingException("The start of the range cannot be after the end of the range for character range matching")
-    }
-  }
-
   override fun matches(char: Char): Boolean {
-    return char in start..effectiveEnd
+    return char in range
   }
 
-  override fun collapse() = SetCharMatcher((start..effectiveEnd).toSet())
+  override fun collapse() = SetCharMatcher(range.toSet())
 
-  override fun shouldCollapse(): Boolean = (effectiveEnd - start) <= 1024
+  override fun shouldCollapse(): Boolean = (range.last - range.first) <= 1024
 }
 
 private class SingleCharMatcher(val char: Char) : CharMatcher, Collapsible {

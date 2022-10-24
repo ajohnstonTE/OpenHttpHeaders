@@ -168,7 +168,7 @@ class CharMatcherTest : FunSpec({
           group(CharMatcher.LETTERS)
           group(CharMatcher.NUMBERS)
           exclude {
-            range('3' to '7', endExclusive = true)
+            range('3'..'6')
           }
           include {
             char('5')
@@ -238,10 +238,10 @@ class CharMatcherTest : FunSpec({
           // Standard collapsing
           anyOf("abc")
           char('e')
-          range('x' to 'z')
+          range('x'..'z')
           // Nested `include` within another `include`
           include {
-            range('4' to '6')
+            range('4'..'6')
             // Nested `exclude` within an `include`
             exclude {
               anyOf("xy")
@@ -250,16 +250,16 @@ class CharMatcherTest : FunSpec({
           }
           // Nested `include` that collapses to nothing as the internal set is empty
           include {
-            range('f' to 'h')
+            range('f'..'h')
             exclude {
-              range('f' to 'i')
+              range('f'..'i')
             }
           }
           // Nested `exclude` that collapses to nothing as the internal set is empty
           exclude {
-            range('b' to 'c')
+            range('b'..'c')
             exclude {
-              range('a' to 'd')
+              range('a'..'d')
             }
           }
           // Nested `exclude` within an `include`
@@ -268,7 +268,7 @@ class CharMatcherTest : FunSpec({
             // Nested `include` within an `exclude`
             include {
               anyOf("b")
-              range('1' to '9')
+              range('1'..'9')
             }
             exclude {
               char('a')
@@ -293,7 +293,7 @@ class CharMatcherTest : FunSpec({
       }
       test("should not collapse a range matcher into a set matcher if the range is too large") {
         val charMatcher = charMatcher {
-          range('\u0001' to '\u0402') // 1024 chars is the current limit, to avoid incredibly large sets
+          range('\u0001'..'\u0402') // 1024 chars is the current limit, to avoid incredibly large sets
         }
         charMatcher.shouldBeInstanceOf<RangeCharMatcher>()
         // And, for sanity, check the matches
@@ -313,7 +313,7 @@ class CharMatcherTest : FunSpec({
           val charMatcher = charMatcher {
             anyOf("abc")
             char('e')
-            range('x' to 'z')
+            range('x'..'z')
           }
           withData(
             nameFn = { "'${it.char}'" },
@@ -389,7 +389,7 @@ class CharMatcherTest : FunSpec({
             exclude {
               anyOf("abc")
               char('e')
-              range('x' to 'z')
+              range('x'..'z')
             }
           }
           withData(

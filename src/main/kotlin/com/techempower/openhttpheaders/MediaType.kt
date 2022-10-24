@@ -35,6 +35,8 @@ class MediaType(
     this.subtype = subtype.lowercase()
     this.parameters =
         parameters.entries.associate { it.key.lowercase() to it.value }
+    /* TODO CURRENT: The following check should be optionally
+     *  applied (but always applied for the Accept header) */
     if (quality != null) {
       if (quality > 1 || quality < 0) {
         throw ProcessingException("Invalid quality, must be between 0 and 1000, inclusive: $quality")
