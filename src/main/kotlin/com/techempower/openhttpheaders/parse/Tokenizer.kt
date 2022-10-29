@@ -12,27 +12,46 @@ internal class Tokenizer(
     private set
 
   private var currentScope: TokenizerScope =
-      TokenizerScope(null, WeakHashMap(), mutableMapOf(), WeakHashMap())
+      TokenizerScope(
+          grammar = null,
+          value = null,
+          children = WeakHashMap(),
+          groupContexts = mutableMapOf(),
+          refContexts = WeakHashMap()
+      )
 
-  fun <T> addScope(grammar: CaptureGrammar<*, *>, function: () -> T): T {
+  fun addScope(
+      grammar: CaptureGrammar<*, *>,
+      function: () -> Boolean
+  ): Boolean {
     val oldScope = currentScope
-    val newScope =
-        TokenizerScope(null, WeakHashMap(), mutableMapOf(), WeakHashMap())
-    val scopes =
-        currentScope.children.computeIfAbsent(grammar) { mutableListOf() }
-    scopes.add(newScope)
+    var newScope =
+        TokenizerScope(
+            grammar = grammar,
+            value = null,
+            children = WeakHashMap(),
+            groupContexts = mutableMapOf(),
+            refContexts = WeakHashMap()
+        )
     currentScope = newScope
-    val returned = function.invoke()
+    val successful = function.invoke()
+    // Note that the instance of the new scope may have changed due to
+    // save/restore, so the reference must be re-obtained.
+    newScope = currentScope
     currentScope = oldScope
-    return returned
+    if (successful) {
+      val scopes =
+          currentScope.children.computeIfAbsent(grammar) { mutableListOf() }
+      scopes.add(newScope)
+    }
+    return successful
   }
 
-  fun <T> forEachScope(grammar: Grammar<*>, function: () -> T): List<T> {
-    val scopes = currentScope.children[grammar]
-        ?: throw ProcessingException("Scopes for grammar not found")
-    return forEachProvidedScope(scopes, function)
+  fun <T> addScope(grammar: TransformGrammar, function: () -> T): T {
+    TODO()
   }
 
+  // TODO CURRENT: I think forLatestScope is the only one needed.
   fun <T> forSingleScope(grammar: Grammar<*>, function: () -> T): T {
     val scopes = currentScope.children[grammar]
         ?: throw ProcessingException("Scopes for grammar not found")
@@ -48,7 +67,10 @@ internal class Tokenizer(
     if (scopes.isEmpty()) {
       throw ProcessingException("Scope for grammar not found")
     }
-    return forEachProvidedScope(scopes.subList(0, 1), function).last()
+    return forEachProvidedScope(
+        scopes.subList(scopes.size - 1, scopes.size),
+        function
+    ).last()
   }
 
   private fun <T> forEachProvidedScope(
@@ -88,7 +110,8 @@ internal class Tokenizer(
         .add(context)
   }
 
-  fun getContext(group: String): MutableCaptureContext? = getAllContexts(group).firstOrNull()
+  fun getContext(group: String): MutableCaptureContext? =
+      getAllContexts(group).firstOrNull()
 
   fun getAllContexts(group: String): List<MutableCaptureContext> {
     val value = (currentScope.groupContexts[group]
@@ -101,7 +124,8 @@ internal class Tokenizer(
     return value.contexts
   }
 
-  fun getContext(grammar: Grammar<*>): MutableCaptureContext? = getAllContexts(grammar).firstOrNull()
+  fun getContext(grammar: Grammar<*>): MutableCaptureContext? =
+      getAllContexts(grammar).firstOrNull()
 
   fun getAllContexts(grammar: Grammar<*>): List<MutableCaptureContext> {
     val value = currentScope.refContexts[grammar]
@@ -114,6 +138,7 @@ internal class Tokenizer(
   fun save(): TokenizerSavePoint = TokenizerSavePointImpl(
       index = index,
       scope = TokenizerScope(
+          grammar = currentScope.grammar,
           value = currentScope.value,
           // Copies only need to be one-map deep. Scopes are never re-entered after
           // they have been created.
@@ -148,6 +173,7 @@ internal class Tokenizer(
 internal interface TokenizerSavePoint
 
 private class TokenizerScope(
+    val grammar: Grammar<*>?,
     var value: String?,
     val children: WeakHashMap<CaptureGrammar<*, *>, MutableList<TokenizerScope>>,
     val groupContexts: MutableMap<String, GroupRefContextMapping>,

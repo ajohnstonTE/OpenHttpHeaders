@@ -19,6 +19,7 @@ internal class Rfc7231 {
 
     private val MEDIA_TYPE: ParsingGrammar<MediaType>
     private val ACCEPT: ParsingGrammar<AcceptHeader>
+    val PARAMETER: ParsingGrammar<Pair<String, String>>
 
     init {
       // Any visible USASCII character
@@ -42,17 +43,20 @@ internal class Rfc7231 {
           ('\\' + ('\t' / ' ' / V_CHAR / OBS_TEXT).group("escaped_char"))
               // Instead of returning the whole match as its value, only return the escaped character.
               // For example, instead of returning \", it would just return "
-              .capture { it["escaped_char"].value }
+              //.transform { it["escaped_char"].value!! }
+              .capture { it["escaped_char"].value!! }
       val T_CHAR = '!' / '#' / '$' / '%' / '&' / '\'' / '*' / '+' / '-' /
           '.' / '^' / '_' / '`' / '|' / '~' / Rfc7230.DIGIT / Rfc7230.ALPHA
       val QUOTED_STRING =
-          ('\"' + 0.orMore(QD_TEXT / QUOTED_PAIR).group("quoted_value") + '\"')
+          ('\"' + 0.orMore(QUOTED_PAIR / QD_TEXT).group("quoted_value") + '\"')
               // Only include the content inside the quotes for the value
-              .capture { it["quoted_value"].value }
+              //.transform { it["quoted_value"].value!! }
+              .capture { it["quoted_value"].value!! }
       val TOKEN = 1.orMore(T_CHAR)
-          .capture { it.value }
-      val PARAMETER = (!TOKEN + '=' + (TOKEN / QUOTED_STRING).group("value"))
+      PARAMETER = (!TOKEN + '=' + (QUOTED_STRING / TOKEN).group("value"))
           .capture { it[TOKEN].value!!.lowercase() to it["value"].value!! }
+      // TODO CURRENT: copy should probably return an actual copy so that
+      //  capture grammars don't get messed up for refs when copied.
       val TYPE = TOKEN.copy()
       val SUBTYPE = TOKEN.copy()
       MEDIA_TYPE =

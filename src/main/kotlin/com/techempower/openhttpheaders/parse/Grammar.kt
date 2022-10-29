@@ -18,6 +18,12 @@ internal abstract class Grammar<T> {
     return CaptureGrammar(this, function)
   }
 
+  fun transform(
+      function: (SingleCaptureContext<String>) -> String
+  ): TransformGrammar {
+    return TransformGrammar(this, function)
+  }
+
   // This will basically tell the grammar to return a wrapped version of itself
   // that will map the wrapped instance to the context for captures.
   operator fun not(): Grammar<*> = RefGrammar(this)
@@ -101,8 +107,9 @@ internal class SingleCaptureContext<T>(
       val value: Any = if (grammar is CaptureGrammar<*, *>) {
         val original = tokenizer.save()
         tokenizer.restore(tokenizerContext.savePoint!!)
-        grammar.doCapture(tokenizer, parseParameters)
+        val returned = grammar.doCapture(tokenizer, parseParameters)!!
         tokenizer.restore(original)
+        returned
       } else {
         tokenizerContext.text
       }
@@ -276,6 +283,17 @@ internal class CaptureGrammar<S, T>(
             tokenizer
         )
     )
+  }
+}
+
+internal class TransformGrammar(
+    private val grammar: Grammar<*>,
+    private val captureFunction: (SingleCaptureContext<String>) -> String
+) : Grammar<String>() {
+  override fun process(input: String, tokenizer: Tokenizer): Boolean {
+    return tokenizer.addScope(this) {
+      TODO()
+    }
   }
 }
 

@@ -472,4 +472,16 @@ class MediaTypeTest : FunSpec({
       )
     }
   }
+  context("toMimeString") {
+    test("should not double up on the q value if specified in the parameters") {
+      MediaType.of("text", "html")
+          .quality(0.9)
+          .addParameter("q", "0.9")
+          .toMimeString("q") shouldBe "text/html;q=0.9"
+      MediaType.of("text", "html")
+          .quality(0.9)
+          .addParameter("qs", "0.9")
+          .toMimeString("qs") shouldBe "text/html;qs=0.9"
+    }
+  }
 })

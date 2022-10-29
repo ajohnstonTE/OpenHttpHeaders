@@ -95,6 +95,12 @@ class MediaType(
     val qualitySuffix =
         if (qualityDecimal != null) "$qValueKey=$qualityDecimal" else ""
     val parametersString = parameters
+        .filter {
+          quality == null || !it.key.equals(
+              qValueKey,
+              ignoreCase = true
+          )
+        }
         .map { "${it.key}=${quoteIfNecessary(it.value)}" }
         .joinToString(";")
     return listOf(
