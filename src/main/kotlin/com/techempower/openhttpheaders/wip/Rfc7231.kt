@@ -52,6 +52,8 @@ internal class Rfc7231 {
           .capture { it[TOKEN].value!!.lowercase() to it["value"].value!! }
       // TODO CURRENT: copy should probably return an actual copy so that
       //  capture grammars don't get messed up for refs when copied.
+      //  Note: This is done, but it needs tests. While testing, temporarily
+      //  change it back to verify it would have been an issue.
       val TYPE = TOKEN.copy()
       val SUBTYPE = TOKEN.copy()
       MEDIA_TYPE =

@@ -28,7 +28,7 @@ internal abstract class Grammar<T> {
   // that will map the wrapped instance to the context for captures.
   operator fun not(): Grammar<*> = RefGrammar(this)
 
-  fun copy(): Grammar<T> = CopyGrammar(this)
+  abstract fun copy(): Grammar<T>
 
   internal abstract fun process(
       input: String,
@@ -138,6 +138,8 @@ internal class CharMatcherGrammar(private val charMatcher: CharMatcher) :
     Grammar<String>() {
   constructor(value: Char) : this(charMatcher { char(value) })
 
+  override fun copy(): Grammar<String> = CharMatcherGrammar(charMatcher)
+
   override fun process(input: String, tokenizer: Tokenizer): Boolean {
     if (tokenizer.hasNext() && charMatcher.matches(tokenizer.peek())) {
       tokenizer.advance()
@@ -151,6 +153,8 @@ internal class AndThenGrammar(
     private val first: Grammar<*>,
     private val second: Grammar<*>
 ) : Grammar<String>() {
+  override fun copy(): Grammar<String> = AndThenGrammar(first, second)
+
   override fun process(input: String, tokenizer: Tokenizer): Boolean {
     return first.process(input, tokenizer)
         && second.process(input, tokenizer)
@@ -166,6 +170,8 @@ internal class OrGrammar(
     private val a: Grammar<*>,
     private val b: Grammar<*>
 ) : Grammar<String>() {
+  override fun copy(): Grammar<String> = OrGrammar(a, b)
+
   override fun process(input: String, tokenizer: Tokenizer): Boolean {
     val savePoint = tokenizer.save()
     if (a.process(input, tokenizer)) {
@@ -176,12 +182,9 @@ internal class OrGrammar(
   }
 }
 
-internal class CopyGrammar<T>(private val copy: Grammar<T>) : Grammar<T>() {
-  override fun process(input: String, tokenizer: Tokenizer): Boolean =
-      copy.process(input, tokenizer)
-}
-
 internal class RefGrammar<T>(private val ref: Grammar<T>) : Grammar<T>() {
+  override fun copy(): Grammar<T> = RefGrammar(ref)
+
   @Suppress("DuplicatedCode")
   override fun process(input: String, tokenizer: Tokenizer): Boolean {
     val initialIndex = tokenizer.index
@@ -207,6 +210,8 @@ internal class GroupGrammar<T>(
     private val grouped: Grammar<T>,
     private val group: String
 ) : Grammar<T>() {
+  override fun copy(): Grammar<T> = GroupGrammar(grouped, group)
+
   @Suppress("DuplicatedCode")
   override fun process(input: String, tokenizer: Tokenizer): Boolean {
     val initialIndex = tokenizer.index
@@ -266,6 +271,8 @@ internal class CaptureGrammar<S, T>(
     }
   }
 
+  override fun copy(): Grammar<T> = CaptureGrammar(grammar, captureFunction)
+
   fun doCapture(tokenizer: Tokenizer, parseParameters: Map<String, Any>): T {
     return captureFunction.invoke(
         SingleCaptureContext(
@@ -282,6 +289,9 @@ internal class TransformGrammar(
     private val grammar: Grammar<*>,
     private val transformFunction: (SingleCaptureContext<String>) -> String
 ) : Grammar<String>() {
+  override fun copy(): Grammar<String> =
+      TransformGrammar(grammar, transformFunction)
+
   override fun process(input: String, tokenizer: Tokenizer): Boolean {
     val initialIndex = tokenizer.index
     var savePoint: TokenizerSavePoint? = null
@@ -309,6 +319,7 @@ internal class XOrMoreGrammar<T>(
     private val grammar: Grammar<T>,
     private val lowerLimit: Int
 ) : Grammar<T>() {
+  override fun copy(): Grammar<T> = XOrMoreGrammar(grammar, lowerLimit)
 
   override fun process(input: String, tokenizer: Tokenizer): Boolean {
     var count = 0
@@ -326,6 +337,8 @@ internal class RangeGrammar<T>(
     private val grammar: Grammar<T>,
     private val range: IntRange
 ) : Grammar<T>() {
+  override fun copy(): Grammar<T> = RangeGrammar(grammar, range)
+
   override fun process(input: String, tokenizer: Tokenizer): Boolean {
     var count = 0
     do {
