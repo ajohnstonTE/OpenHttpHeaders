@@ -14,7 +14,8 @@ internal class Tokenizer(
   private var currentScope: TokenizerScope =
       TokenizerScope(
           grammar = null,
-          value = null,
+          valueRange = null,
+          transforms = mutableListOf(),
           children = WeakHashMap(),
           groupContexts = mutableMapOf(),
           refContexts = WeakHashMap()
@@ -23,12 +24,21 @@ internal class Tokenizer(
   fun addScope(
       grammar: CaptureGrammar<*, *>,
       function: () -> Boolean
+  ): Boolean = addGrammarScope(grammar, function)
+
+  fun addScope(grammar: TransformGrammar, function: () -> Boolean): Boolean =
+      addGrammarScope(grammar, function)
+
+  private fun addGrammarScope(
+      grammar: Grammar<*>,
+      function: () -> Boolean
   ): Boolean {
     val oldScope = currentScope
     var newScope =
         TokenizerScope(
             grammar = grammar,
-            value = null,
+            valueRange = null,
+            transforms = mutableListOf(),
             children = WeakHashMap(),
             groupContexts = mutableMapOf(),
             refContexts = WeakHashMap()
@@ -45,20 +55,6 @@ internal class Tokenizer(
       scopes.add(newScope)
     }
     return successful
-  }
-
-  fun <T> addScope(grammar: TransformGrammar, function: () -> T): T {
-    TODO()
-  }
-
-  // TODO CURRENT: I think forLatestScope is the only one needed.
-  fun <T> forSingleScope(grammar: Grammar<*>, function: () -> T): T {
-    val scopes = currentScope.children[grammar]
-        ?: throw ProcessingException("Scopes for grammar not found")
-    if (scopes.isEmpty()) {
-      throw ProcessingException("Scope for grammar not found")
-    }
-    return forEachProvidedScope(scopes.subList(0, 1), function)[0]
   }
 
   fun <T> forLatestScope(grammar: Grammar<*>, function: () -> T): T {
@@ -97,49 +93,63 @@ internal class Tokenizer(
   fun addContext(
       group: String,
       grammar: Grammar<*>,
-      context: MutableCaptureContext
+      range: IntRange, savePoint: TokenizerSavePoint?
   ) {
     val contextMapping = currentScope.groupContexts.computeIfAbsent(group) {
       GroupRefContextMapping(grammar)
     }
-    contextMapping.contexts.add(context)
+    contextMapping.contexts.add(
+        GroupValue(
+            originalRange = range,
+            savePoint = savePoint,
+        )
+    )
   }
 
-  fun addContext(grammar: Grammar<*>, context: MutableCaptureContext) {
-    currentScope.refContexts.computeIfAbsent(grammar) { mutableListOf() }
-        .add(context)
+  fun addContext(
+      grammar: Grammar<*>,
+      range: IntRange,
+      savePoint: TokenizerSavePoint?
+  ) {
+    val contextMapping = currentScope.refContexts.computeIfAbsent(grammar) {
+      GroupRefContextMapping(grammar)
+    }
+    contextMapping.contexts.add(
+        GroupValue(
+            originalRange = range,
+            savePoint = savePoint,
+        )
+    )
   }
 
-  fun getContext(group: String): MutableCaptureContext? =
+  fun getContext(group: String): GroupValue? =
       getAllContexts(group).firstOrNull()
 
-  fun getAllContexts(group: String): List<MutableCaptureContext> {
-    val value = (currentScope.groupContexts[group]
-        ?: throw ProcessingException("Context for group $group not found"))
-    if (value.contexts.isEmpty()) {
-      // This should never happen, the only way a grammar has a reference in
-      // the map is if map entry for that grammar was populated.
-      throw ProcessingException("Context for group $group is empty")
+  fun getAllContexts(group: String): List<GroupValue> {
+    val value = currentScope.groupContexts[group]
+    if (value == null || value.contexts.isEmpty()) {
+      return listOf()
     }
     return value.contexts
   }
 
-  fun getContext(grammar: Grammar<*>): MutableCaptureContext? =
+  fun getContext(grammar: Grammar<*>): GroupValue? =
       getAllContexts(grammar).firstOrNull()
 
-  fun getAllContexts(grammar: Grammar<*>): List<MutableCaptureContext> {
+  fun getAllContexts(grammar: Grammar<*>): List<GroupValue> {
     val value = currentScope.refContexts[grammar]
-    if (value.isNullOrEmpty()) {
+    if (value == null || value.contexts.isEmpty()) {
       return listOf()
     }
-    return value
+    return value.contexts
   }
 
   fun save(): TokenizerSavePoint = TokenizerSavePointImpl(
       index = index,
       scope = TokenizerScope(
           grammar = currentScope.grammar,
-          value = currentScope.value,
+          valueRange = currentScope.valueRange,
+          transforms = currentScope.transforms.toMutableList(),
           // Copies only need to be one-map deep. Scopes are never re-entered after
           // they have been created.
           children = currentScope.children
@@ -150,7 +160,7 @@ internal class Tokenizer(
               .associateTo(mutableMapOf()) { it.key to it.value.copy() },
           refContexts = currentScope.refContexts
               .entries
-              .associateTo(WeakHashMap()) { it.key to it.value.toMutableList() }
+              .associateTo(WeakHashMap()) { it.key to it.value.copy() }
       )
   )
 
@@ -160,11 +170,99 @@ internal class Tokenizer(
     index = impl.index
   }
 
-  fun setScopeValue(str: String) {
-    currentScope.value = str
+  fun setScopeValue(startInclusive: Int, endExclusive: Int) {
+    currentScope.valueRange = startInclusive until endExclusive
   }
 
-  fun getScopeValue(): String? = currentScope.value
+  fun transform(
+      startInclusive: Int,
+      endExclusive: Int,
+      savePoint: TokenizerSavePoint,
+      transformFunction: (SingleCaptureContext<String>) -> String
+  ) {
+    currentScope.transforms.add(
+        Transform(
+            startInclusive = startInclusive,
+            endExclusive = endExclusive,
+            savePoint = savePoint,
+            transformFunction = transformFunction
+
+        )
+    )
+  }
+
+  fun getScopeValue(parseParameters: Map<String, Any>): String? {
+    if (currentScope.valueRange == null) {
+      return null
+    }
+    // TODO CURRENT: Optimize later
+    val stringBuilder = StringBuilder()
+    val originalIndex = currentScope.valueRange!!.first
+    var index = originalIndex
+    val transformResults = mutableListOf<TransformResult>()
+    currentScope.transforms.forEach {
+      if (index != it.startInclusive) {
+        stringBuilder.append(input.substring(index, it.startInclusive))
+      }
+      val original = save()
+      restore(it.savePoint)
+      val toTransform = getScopeValue(parseParameters)!!
+      // TODO CURRENT: The save/restore for cases like this is wasteful.
+      //  Better to just add a function like view(savePoint) {} which doesn't
+      //  have the overhead of copying the old one, since it's not about safe
+      //  modifications to the original.
+
+      val transformed = it.transformFunction.invoke(
+          SingleCaptureContext(
+              toTransform,
+              parseParameters,
+              this
+          )
+      )
+      transformResults.add(
+          TransformResult(
+              it.startInclusive until it.endExclusive,
+              transformed.length
+          )
+      )
+      stringBuilder.append(transformed)
+      restore(original)
+      index = it.endExclusive
+    }
+    if (index != currentScope.valueRange!!.last + 1) {
+      stringBuilder.append(
+          input.substring(
+              index,
+              currentScope.valueRange!!.last + 1
+          )
+      )
+    }
+    val value = stringBuilder.toString()
+    // Go through all groups and refs and update their start/end indexes to
+    // reflect the transforms.
+    (currentScope.groupContexts.values + currentScope.refContexts.values)
+        .forEach {
+          it.contexts.forEach { groupValue ->
+            var startInclusive: Int =
+                groupValue.originalRange.first - originalIndex
+            var endExclusive: Int =
+                groupValue.originalRange.last + 1 - originalIndex
+
+            transformResults.forEach { transformResult ->
+              if (transformResult.transformRange.last < groupValue.originalRange.first) {
+                startInclusive += transformResult.offset
+                endExclusive += transformResult.offset
+              } else if (transformResult.transformRange.last <= groupValue.originalRange.last) {
+                endExclusive += transformResult.offset
+              }
+            }
+
+            groupValue.effectiveRange = startInclusive until endExclusive
+            groupValue.text = value.substring(groupValue.effectiveRange!!)
+          }
+        }
+    return value
+  }
 }
 
 // This should only be implemented by TokenizerSavePointImpl. It serves as a
@@ -174,10 +272,11 @@ internal interface TokenizerSavePoint
 
 private class TokenizerScope(
     val grammar: Grammar<*>?,
-    var value: String?,
-    val children: WeakHashMap<CaptureGrammar<*, *>, MutableList<TokenizerScope>>,
+    var valueRange: IntRange?,
+    val transforms: MutableList<Transform>,
+    val children: WeakHashMap<Grammar<*>, MutableList<TokenizerScope>>,
     val groupContexts: MutableMap<String, GroupRefContextMapping>,
-    val refContexts: WeakHashMap<Grammar<*>, MutableList<MutableCaptureContext>>
+    val refContexts: WeakHashMap<Grammar<*>, GroupRefContextMapping>
 )
 
 private class TokenizerSavePointImpl(
@@ -187,10 +286,32 @@ private class TokenizerSavePointImpl(
 
 private class GroupRefContextMapping(
     val grammar: Grammar<*>,
-    val contexts: MutableList<MutableCaptureContext> = mutableListOf()
+    val contexts: MutableList<GroupValue> = mutableListOf()
 ) {
   fun copy() = GroupRefContextMapping(
       grammar = grammar,
       contexts = contexts.toMutableList()
   )
 }
+
+private class Transform(
+    val startInclusive: Int,
+    val endExclusive: Int,
+    val savePoint: TokenizerSavePoint,
+    val transformFunction: (SingleCaptureContext<String>) -> String
+)
+
+private class TransformResult(
+    val transformRange: IntRange,
+    newLength: Int
+) {
+  val offset = newLength - ((transformRange.last + 1) - transformRange.first)
+}
+
+internal class GroupValue(
+    val originalRange: IntRange,
+    var effectiveRange: IntRange? = null,
+    var text: String? = null,
+    var value: Any? = null,
+    var savePoint: TokenizerSavePoint?
+)

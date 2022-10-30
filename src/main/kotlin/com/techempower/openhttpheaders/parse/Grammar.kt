@@ -77,14 +77,14 @@ internal class SingleCaptureContext<T>(
   }
 
   private fun <T> captureSingle(
-      tokenizerContext: MutableCaptureContext?,
+      tokenizerContext: GroupValue?,
       grammar: Grammar<T>
   ): SingleCaptureContext<T?> {
     val value: Any? = if (tokenizerContext == null) {
       null
     } else {
       if (grammar is CaptureGrammar<*, *>) {
-        tokenizer.forSingleScope(grammar) {
+        tokenizer.forLatestScope(grammar) {
           grammar.doCapture(tokenizer, parseParameters)
         }
       } else {
@@ -100,7 +100,7 @@ internal class SingleCaptureContext<T>(
   }
 
   private fun <T> captureAll(
-      tokenizerContexts: List<MutableCaptureContext>,
+      tokenizerContexts: List<GroupValue>,
       grammar: Grammar<T>
   ): List<SingleCaptureContext<T>> {
     return tokenizerContexts.map { tokenizerContext ->
@@ -111,7 +111,7 @@ internal class SingleCaptureContext<T>(
         tokenizer.restore(original)
         returned
       } else {
-        tokenizerContext.text
+        tokenizerContext.text!!
       }
       @Suppress("UNCHECKED_CAST")
       SingleCaptureContext(
@@ -133,12 +133,6 @@ internal class SingleCaptureContext<T>(
 }
 
 internal class SimpleCaptureContext(val value: String?)
-
-internal class MutableCaptureContext(
-    var text: String, // TODO CURRENT: Should be CharSpan in the end
-    var value: Any? = null,
-    var savePoint: TokenizerSavePoint? = null
-)
 
 internal class CharMatcherGrammar(private val charMatcher: CharMatcher) :
     Grammar<String>() {
@@ -194,17 +188,16 @@ internal class RefGrammar<T>(private val ref: Grammar<T>) : Grammar<T>() {
     if (!ref.process(input, tokenizer)) {
       return false
     }
-    val context = MutableCaptureContext(
-        text = input.substring(initialIndex, tokenizer.index)
-    )
+    var savePoint: TokenizerSavePoint? = null
     if (ref is CaptureGrammar<*, *>) {
       tokenizer.forLatestScope(ref) {
-        context.savePoint = tokenizer.save()
+        savePoint = tokenizer.save()
       }
     }
     tokenizer.addContext(
         grammar = ref,
-        context = context
+        initialIndex until tokenizer.index,
+        savePoint = savePoint
     )
     return true
   }
@@ -220,18 +213,17 @@ internal class GroupGrammar<T>(
     if (!grouped.process(input, tokenizer)) {
       return false
     }
-    val context = MutableCaptureContext(
-        text = input.substring(initialIndex, tokenizer.index)
-    )
+    var savePoint: TokenizerSavePoint? = null
     if (grouped is CaptureGrammar<*, *>) {
       tokenizer.forLatestScope(grouped) {
-        context.savePoint = tokenizer.save()
+        savePoint = tokenizer.save()
       }
     }
     tokenizer.addContext(
         group = group,
+        range = initialIndex until tokenizer.index,
         grammar = grouped,
-        context = context
+        savePoint = savePoint
     )
     return true
   }
@@ -252,7 +244,7 @@ internal class CaptureGrammar<S, T>(
     return tokenizer.addScope(this) {
       val initialIndex = tokenizer.index
       if (grammar.process(input, tokenizer)) {
-        tokenizer.setScopeValue(input.substring(initialIndex, tokenizer.index))
+        tokenizer.setScopeValue(initialIndex, tokenizer.index)
         return@addScope true
       }
       return@addScope false
@@ -269,7 +261,7 @@ internal class CaptureGrammar<S, T>(
               " parsed up to position ${tokenizer.index}.",
       )
     }
-    return tokenizer.forSingleScope(this) {
+    return tokenizer.forLatestScope(this) {
       doCapture(tokenizer, parseParameters)
     }
   }
@@ -278,7 +270,7 @@ internal class CaptureGrammar<S, T>(
     return captureFunction.invoke(
         SingleCaptureContext(
             // It matched so it definitely has a value
-            tokenizer.getScopeValue()!!,
+            tokenizer.getScopeValue(parseParameters)!!,
             parseParameters,
             tokenizer
         )
@@ -288,12 +280,28 @@ internal class CaptureGrammar<S, T>(
 
 internal class TransformGrammar(
     private val grammar: Grammar<*>,
-    private val captureFunction: (SingleCaptureContext<String>) -> String
+    private val transformFunction: (SingleCaptureContext<String>) -> String
 ) : Grammar<String>() {
   override fun process(input: String, tokenizer: Tokenizer): Boolean {
-    return tokenizer.addScope(this) {
-      TODO()
+    val initialIndex = tokenizer.index
+    var savePoint: TokenizerSavePoint? = null
+    val success = tokenizer.addScope(this) {
+      val successful = grammar.process(input, tokenizer)
+      if (successful) {
+        tokenizer.setScopeValue(initialIndex, tokenizer.index)
+        savePoint = tokenizer.save()
+      }
+      return@addScope successful
     }
+    if (success) {
+      tokenizer.transform(
+          initialIndex,
+          tokenizer.index,
+          savePoint!!,
+          transformFunction
+      )
+    }
+    return success
   }
 }
 
