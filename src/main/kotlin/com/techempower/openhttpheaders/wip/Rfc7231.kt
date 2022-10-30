@@ -48,6 +48,7 @@ internal class Rfc7231 {
               // Only include the content inside the quotes for the value
               .transform { it["quoted_value"].value!! }
       val TOKEN = 1.orMore(T_CHAR)
+      val x = 1 or 2
       val PARAMETER = (!TOKEN + '=' + (QUOTED_STRING / TOKEN).group("value"))
           .capture { it[TOKEN].value!!.lowercase() to it["value"].value!! }
       // TODO CURRENT: copy should probably return an actual copy so that

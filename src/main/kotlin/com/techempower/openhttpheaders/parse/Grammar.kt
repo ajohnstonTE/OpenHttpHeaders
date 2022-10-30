@@ -4,6 +4,15 @@ import com.techempower.openhttpheaders.ProcessingException
 
 // TODO CURRENT: Probably a good idea to use CharSpan here.
 
+// TODO CURRENT: The current grammar/parsing implementation is
+//  "permanently-greedy", in the sense that once a value has been successfully
+//  matched a number of times in something like an xOrMore grammar, it never
+//  tries again with fewer matches if one of its ancestors fails to match. For
+//  example, if the grammar is `0.orMore('x') + 'x'`, it will not match 'xx'
+//  because the 0.orMore will greedily consume all x's and never try only
+//  taking just one. While the RFC grammars are probably designed such that
+//  this isn't a problem, this should still be addressed at some point.
+
 internal abstract class Grammar<T> {
   fun group(key: String): Grammar<T> =
       GroupGrammar(this, key)
@@ -346,10 +355,38 @@ internal class RangeGrammar<T>(
       if (matched) {
         count += 1
       }
-      if (count < range.last) {
-        return false
+      if (count == range.last) {
+        // Stop matching. It's possible that the remaining potential matches go
+        // to something else.
+        return true
       }
     } while (matched)
     return count >= range.first
+  }
+}
+
+internal class OrCountGrammar<T>(
+    private val grammar: Grammar<T>,
+    private val options: Set<Int>
+) : Grammar<T>() {
+
+  private val max = options.max()
+
+  override fun copy(): Grammar<T> = OrCountGrammar(grammar, options)
+
+  override fun process(input: String, tokenizer: Tokenizer): Boolean {
+    var count = 0
+    do {
+      val matched = grammar.process(input, tokenizer)
+      if (matched) {
+        count += 1
+      }
+      if (count == max) {
+        // Stop matching. It's possible that the remaining potential matches go
+        // to something else.
+        return true
+      }
+    } while (matched)
+    return options.contains(count)
   }
 }

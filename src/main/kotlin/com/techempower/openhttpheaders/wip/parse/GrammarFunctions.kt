@@ -8,6 +8,7 @@ import com.techempower.openhttpheaders.parse.AndThenGrammar
 import com.techempower.openhttpheaders.parse.CharMatcher
 import com.techempower.openhttpheaders.parse.CharMatcherGrammar
 import com.techempower.openhttpheaders.parse.Grammar
+import com.techempower.openhttpheaders.parse.OrCountGrammar
 import com.techempower.openhttpheaders.parse.OrGrammar
 import com.techempower.openhttpheaders.parse.RangeGrammar
 import com.techempower.openhttpheaders.parse.SingleCaptureContext
@@ -22,6 +23,15 @@ internal fun Int.orMore(value: CharMatcher): Grammar<String> =
 
 internal fun Int.orMore(value: Char): Grammar<String> =
     XOrMoreGrammar(CharMatcherGrammar(value), this)
+
+internal fun <T> optional(value: Grammar<T>): Grammar<T> =
+    (0 orElse 1).of(value)
+
+internal fun optional(value: CharMatcher): Grammar<String> =
+    (0 orElse 1).of(value)
+
+internal fun optional(value: Char): Grammar<String> =
+    (0 orElse 1).of(value)
 
 internal fun <T> IntRange.of(value: Grammar<T>): Grammar<T> =
     RangeGrammar(value, this)
@@ -101,3 +111,22 @@ internal operator fun <T> Grammar<T>.plus(value: CharMatcher): Grammar<String> =
 
 internal operator fun <S, T> Grammar<S>.plus(value: Grammar<T>): Grammar<String> =
     AndThenGrammar(this, value)
+
+internal infix fun Int.orElse(value: Int): IntOr =
+    IntOr(setOf(this, value))
+
+internal fun Int.orElse(
+    value2: Int,
+    vararg remaining: Int
+): IntOr = IntOr(setOf(this, value2) + remaining.toSet())
+
+internal class IntOr(private val options: Set<Int>) {
+  internal fun <T> of(value: Grammar<T>): Grammar<T> =
+      OrCountGrammar(value, options)
+
+  internal fun of(value: CharMatcher): Grammar<String> =
+      OrCountGrammar(CharMatcherGrammar(value), options)
+
+  internal fun of(value: Char): Grammar<String> =
+      OrCountGrammar(CharMatcherGrammar(value), options)
+}
