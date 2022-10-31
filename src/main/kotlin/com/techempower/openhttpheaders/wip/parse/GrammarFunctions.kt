@@ -12,6 +12,7 @@ import com.techempower.openhttpheaders.parse.OrCountGrammar
 import com.techempower.openhttpheaders.parse.OrGrammar
 import com.techempower.openhttpheaders.parse.RangeGrammar
 import com.techempower.openhttpheaders.parse.SingleCaptureContext
+import com.techempower.openhttpheaders.parse.StringGrammar
 import com.techempower.openhttpheaders.parse.XOrMoreGrammar
 import com.techempower.openhttpheaders.parse.charMatcher
 
@@ -36,11 +37,20 @@ internal fun optional(value: Char): Grammar<String> =
 internal fun <T> IntRange.of(value: Grammar<T>): Grammar<T> =
     RangeGrammar(value, this)
 
-internal fun <T> IntRange.of(value: CharMatcher): Grammar<String> =
+internal fun IntRange.of(value: CharMatcher): Grammar<String> =
     RangeGrammar(CharMatcherGrammar(value), this)
 
-internal fun <T> IntRange.of(value: Char): Grammar<String> =
+internal fun IntRange.of(value: Char): Grammar<String> =
     RangeGrammar(CharMatcherGrammar(value), this)
+
+internal fun <T> Int.of(value: Grammar<T>): Grammar<T> =
+    RangeGrammar(value, this..this)
+
+internal fun Int.of(value: CharMatcher): Grammar<String> =
+    RangeGrammar(CharMatcherGrammar(value), this..this)
+
+internal fun Int.of(value: Char): Grammar<String> =
+    RangeGrammar(CharMatcherGrammar(value), this..this)
 
 internal fun CharMatcher.group(key: String): Grammar<String> =
     CharMatcherGrammar(this).group(key)
@@ -111,6 +121,8 @@ internal operator fun <T> Grammar<T>.plus(value: CharMatcher): Grammar<String> =
 
 internal operator fun <S, T> Grammar<S>.plus(value: Grammar<T>): Grammar<String> =
     AndThenGrammar(this, value)
+
+internal operator fun String.unaryMinus() = StringGrammar(this, false)
 
 internal infix fun Int.orElse(value: Int): IntOr =
     IntOr(setOf(this, value))

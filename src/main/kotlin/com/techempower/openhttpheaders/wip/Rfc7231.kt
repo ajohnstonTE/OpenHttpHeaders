@@ -38,8 +38,9 @@ internal class Rfc7231 {
       }
       val QUOTED_PAIR =
           ('\\' + ('\t' / ' ' / V_CHAR / OBS_TEXT).group("escaped_char"))
-              // Instead of returning the whole match as its value, only return the escaped character.
-              // For example, instead of returning \", it would just return "
+              // Instead of returning the whole match as its value, only return
+              // the escaped character. For example, instead of returning \",
+              // it would just return "
               .transform { it["escaped_char"].value!! }
       val T_CHAR = '!' / '#' / '$' / '%' / '&' / '\'' / '*' / '+' / '-' /
           '.' / '^' / '_' / '`' / '|' / '~' / Rfc7230.DIGIT / Rfc7230.ALPHA
@@ -48,7 +49,6 @@ internal class Rfc7231 {
               // Only include the content inside the quotes for the value
               .transform { it["quoted_value"].value!! }
       val TOKEN = 1.orMore(T_CHAR)
-      val x = 1 or 2
       val PARAMETER = (!TOKEN + '=' + (QUOTED_STRING / TOKEN).group("value"))
           .capture { it[TOKEN].value!!.lowercase() to it["value"].value!! }
       // TODO CURRENT: copy should probably return an actual copy so that

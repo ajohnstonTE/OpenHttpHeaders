@@ -39,10 +39,24 @@ internal abstract class Grammar<T> {
 
   abstract fun copy(): Grammar<T>
 
+  fun debug(function: () -> Unit): Grammar<String> = DebugGrammar(this, function)
+
   internal abstract fun process(
       input: String,
       tokenizer: Tokenizer
   ): Boolean
+}
+
+internal class DebugGrammar(
+    private val grammar: Grammar<*>,
+    private val function: () -> Unit
+) : Grammar<String>() {
+  override fun copy(): Grammar<String> = DebugGrammar(grammar, function)
+
+  override fun process(input: String, tokenizer: Tokenizer): Boolean {
+    function.invoke()
+    return grammar.process(input, tokenizer)
+  }
 }
 
 internal class SingleCaptureContext<T>(
@@ -156,6 +170,32 @@ internal class CharMatcherGrammar(private val charMatcher: CharMatcher) :
     }
     return false
   }
+}
+
+internal class StringGrammar(
+    private val value: String,
+    private val caseSensitive: Boolean
+) : Grammar<String>() {
+
+  override fun copy(): Grammar<String> = StringGrammar(value, caseSensitive)
+
+  override fun process(input: String, tokenizer: Tokenizer): Boolean {
+    for (char in value) {
+      if (!tokenizer.hasNext() || !char.equals(
+              tokenizer.peek(),
+              ignoreCase = !caseSensitive
+          )
+      ) {
+        return false
+      }
+      tokenizer.advance()
+    }
+    return true
+  }
+
+  // Will likely never be used, but supported regardless.
+  @Suppress("unused")
+  fun caseSensitive(): Grammar<String> = StringGrammar(value, true)
 }
 
 internal class AndThenGrammar(
@@ -333,10 +373,20 @@ internal class XOrMoreGrammar<T>(
   override fun process(input: String, tokenizer: Tokenizer): Boolean {
     var count = 0
     do {
+      // TODO CURRENT: This is very expensive. Optimize.
+      val savePoint = tokenizer.save()
       val matched = grammar.process(input, tokenizer)
       if (matched) {
         count += 1
+      } else {
+        tokenizer.restore(savePoint)
       }
+      // TODO CURRENT: This could end up advancing but matching for a bit but
+      //  not fully, then not restoring as needed. Fix.
+      //  In other words, it could be a grammar like `1.orMore('x' + 'y') + 'x'`
+      //  which would match something like 'xyx' but the xOrMore would end up
+      //  fully grabbing the final x and not rolling back when it doesn't find
+      //  a 'y'
     } while (matched)
     return count >= lowerLimit
   }
@@ -351,15 +401,25 @@ internal class RangeGrammar<T>(
   override fun process(input: String, tokenizer: Tokenizer): Boolean {
     var count = 0
     do {
+      // TODO CURRENT: This is very expensive. Optimize.
+      val savePoint = tokenizer.save()
       val matched = grammar.process(input, tokenizer)
       if (matched) {
         count += 1
+      } else {
+        tokenizer.restore(savePoint)
       }
       if (count == range.last) {
         // Stop matching. It's possible that the remaining potential matches go
         // to something else.
         return true
       }
+      // TODO CURRENT: This could end up advancing but matching for a bit but
+      //  not fully, then not restoring as needed. Fix.
+      //  In other words, it could be a grammar like `(1..2)('x' + 'y') + 'x'`
+      //  which would match something like 'xyx' but the range would end up
+      //  fully grabbing the final x and not rolling back when it doesn't find
+      //  a 'y'
     } while (matched)
     return count >= range.first
   }
@@ -377,9 +437,13 @@ internal class OrCountGrammar<T>(
   override fun process(input: String, tokenizer: Tokenizer): Boolean {
     var count = 0
     do {
+      // TODO CURRENT: This is very expensive. Optimize.
+      val savePoint = tokenizer.save()
       val matched = grammar.process(input, tokenizer)
       if (matched) {
         count += 1
+      } else {
+        tokenizer.restore(savePoint)
       }
       if (count == max) {
         // Stop matching. It's possible that the remaining potential matches go
@@ -387,6 +451,12 @@ internal class OrCountGrammar<T>(
         return true
       }
     } while (matched)
+    // TODO CURRENT: This could end up advancing but matching for a bit but
+    //  not fully, then not restoring as needed. Fix.
+    //  In other words, it could be a grammar like `(1 orElse 2)('x' + 'y') + 'x'`
+    //  which would match something like 'xyx' but the orCount would end up
+    //  fully grabbing the final x and not rolling back when it doesn't find
+    //  a 'y'
     return options.contains(count)
   }
 }
