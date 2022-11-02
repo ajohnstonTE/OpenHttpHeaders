@@ -87,4 +87,16 @@ class TokenizerStateImplTest : FunSpec({
       state.getNumberOfChildren(1)
     }
   }
+  test("isIndexPopulated") {
+    val state = TokenizerStateImpl()
+    state.isIndexPopulated(0) shouldBe false
+    state.isIndexPopulated(1) shouldBe false
+    state.add(1, 2, 3, 4, 5)
+    state.isIndexPopulated(0) shouldBe true
+    state.isIndexPopulated(1) shouldBe false
+    state.add(1, 2, 3, 4, 5)
+    state.isIndexPopulated(0) shouldBe true
+    state.isIndexPopulated(1) shouldBe true
+    state.isIndexPopulated(2) shouldBe false
+  }
 })

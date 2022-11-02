@@ -24,6 +24,8 @@ internal interface TokenizerState {
 
   fun getInputIndex(): Int
 
+  fun isIndexPopulated(index: Int): Boolean
+
   fun getGrammarId(index: Int): Int
 
   fun getGrammarValue(index: Int): Int
@@ -68,6 +70,10 @@ internal class TokenizerStateImpl : TokenizerState {
   }
 
   override fun getInputIndex(): Int = ints[0]
+
+  override fun isIndexPopulated(index: Int): Boolean {
+    return ints.size > BLOCK_SIZE * index + 1
+  }
 
   override fun getGrammarId(index: Int): Int = ints[BLOCK_SIZE * index + 1]
 
