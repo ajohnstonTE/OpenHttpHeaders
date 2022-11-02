@@ -20,6 +20,14 @@ internal interface TokenizerState {
       numberOfChildren: Int,
   ): Int
 
+  fun update(
+      index: Int,
+      grammarValue: Int,
+      rangeStartInclusive: Int,
+      rangeEndExclusive: Int,
+      numberOfChildren: Int,
+  )
+
   fun setInputIndex(index: Int)
 
   fun getInputIndex(): Int
@@ -65,6 +73,20 @@ internal class TokenizerStateImpl : TokenizerState {
     return  (ints.size - 1) / BLOCK_SIZE
   }
 
+  override fun update(
+      index: Int,
+      grammarValue: Int,
+      rangeStartInclusive: Int,
+      rangeEndExclusive: Int,
+      numberOfChildren: Int
+  ) {
+    val offsetIndex = offsetIndex(index)
+    ints[offsetIndex + 1] = grammarValue
+    ints[offsetIndex + 2] = rangeStartInclusive
+    ints[offsetIndex + 3] = rangeEndExclusive
+    ints[offsetIndex + 4] = numberOfChildren
+  }
+
   override fun setInputIndex(index: Int) {
     ints[0] = index
   }
@@ -75,18 +97,20 @@ internal class TokenizerStateImpl : TokenizerState {
     return ints.size > BLOCK_SIZE * index + 1
   }
 
-  override fun getGrammarId(index: Int): Int = ints[BLOCK_SIZE * index + 1]
+  override fun getGrammarId(index: Int): Int = ints[offsetIndex(index)]
 
-  override fun getGrammarValue(index: Int): Int = ints[BLOCK_SIZE * index + 2]
+  override fun getGrammarValue(index: Int): Int = ints[offsetIndex(index) + 1]
 
   override fun getRangeStartInclusive(index: Int): Int =
-      ints[BLOCK_SIZE * index + 3]
+      ints[offsetIndex(index) + 2]
 
   override fun getRangeEndExclusive(index: Int): Int =
-      ints[BLOCK_SIZE * index + 4]
+      ints[offsetIndex(index) + 3]
 
   override fun getNumberOfChildren(index: Int): Int =
-      ints[BLOCK_SIZE * index + 5]
+      ints[offsetIndex(index) + 4]
+
+  private fun offsetIndex(index: Int) = BLOCK_SIZE * index + 1
 
   override fun save(): InlineTokenizerSavePoint {
     // Two ints to a long based on https://stackoverflow.com/a/12772968

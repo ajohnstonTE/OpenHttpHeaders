@@ -99,4 +99,72 @@ class TokenizerStateImplTest : FunSpec({
     state.isIndexPopulated(1) shouldBe true
     state.isIndexPopulated(2) shouldBe false
   }
+  test("update") {
+    val state = TokenizerStateImpl()
+    state.add(
+        grammarId = 2,
+        grammarValue = 5,
+        rangeStartInclusive = 8,
+        rangeEndExclusive = 11,
+        numberOfChildren = 15,
+    )
+    state.add(
+        grammarId = 22,
+        grammarValue = 55,
+        rangeStartInclusive = 88,
+        rangeEndExclusive = 111,
+        numberOfChildren = 155,
+    )
+    // Sanity check
+    state.getGrammarId(0) shouldBe 2
+    state.getGrammarValue(0) shouldBe 5
+    state.getRangeStartInclusive(0) shouldBe 8
+    state.getRangeEndExclusive(0) shouldBe 11
+    state.getNumberOfChildren(0) shouldBe 15
+
+    // Sanity check
+    state.getGrammarId(1) shouldBe 22
+    state.getGrammarValue(1) shouldBe 55
+    state.getRangeStartInclusive(1) shouldBe 88
+    state.getRangeEndExclusive(1) shouldBe 111
+    state.getNumberOfChildren(1) shouldBe 155
+
+    state.update(
+        index = 0,
+        grammarValue = 3,
+        rangeStartInclusive = 5,
+        rangeEndExclusive = 18,
+        numberOfChildren = 19
+    )
+
+    state.getGrammarId(0) shouldBe 2
+    state.getGrammarValue(0) shouldBe 3
+    state.getRangeStartInclusive(0) shouldBe 5
+    state.getRangeEndExclusive(0) shouldBe 18
+    state.getNumberOfChildren(0) shouldBe 19
+
+    state.update(
+        index = 1,
+        grammarValue = 33,
+        rangeStartInclusive = 55,
+        rangeEndExclusive = 188,
+        numberOfChildren = 199
+    )
+
+    state.getGrammarId(1) shouldBe 22
+    state.getGrammarValue(1) shouldBe 33
+    state.getRangeStartInclusive(1) shouldBe 55
+    state.getRangeEndExclusive(1) shouldBe 188
+    state.getNumberOfChildren(1) shouldBe 199
+
+    shouldThrowUnit<IndexOutOfBoundsException> {
+      state.update(
+          index = 2,
+          grammarValue = 0,
+          rangeStartInclusive = 0,
+          rangeEndExclusive = 0,
+          numberOfChildren = 0
+      )
+    }
+  }
 })
