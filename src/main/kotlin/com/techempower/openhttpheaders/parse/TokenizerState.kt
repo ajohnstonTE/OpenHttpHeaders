@@ -6,10 +6,15 @@ internal value class InlineTokenizerSavePoint(val value: Long)
 internal interface TokenizerState {
   // Returns the index of the block added. Can be used to modify/retrieve
   // values for/from all other functions.
-  fun add(
+  fun reserve(
       // Unique per grammar instance. Incremented from 0 using a static
       // AtomicInteger in the Grammar class.
       grammarId: Int,
+      previousSiblingIndex: Int
+  ): Int
+
+  fun update(
+      index: Int,
       // Used for things like the number of matches, or which a/b the OR
       // evaluated to, etc. Different meaning per grammar.
       grammarValue: Int,
@@ -17,16 +22,6 @@ internal interface TokenizerState {
       rangeStartInclusive: Int,
       rangeEndExclusive: Int,
       // Always used to indicate the number of children following the grammar.
-      numberOfChildren: Int,
-      // The index of the previous sibling. Not guaranteed to be the previous block over.
-      previousSiblingIndex: Int,
-  ): Int
-
-  fun update(
-      index: Int,
-      grammarValue: Int,
-      rangeStartInclusive: Int,
-      rangeEndExclusive: Int,
       numberOfChildren: Int,
   )
 
@@ -46,8 +41,10 @@ internal interface TokenizerState {
 
   fun getNumberOfChildren(index: Int): Int
 
+  // The index of the previous sibling. Not guaranteed to be the previous block over.
   fun getPreviousSiblingIndex(index: Int): Int
 
+  // The index of the next sibling. Not guaranteed to be the next block over.
   fun getNextSiblingIndex(index: Int): Int
 
   fun setNextSiblingIndex(index: Int, nextSiblingIndex: Int)
@@ -59,7 +56,7 @@ internal interface TokenizerState {
   fun restore(savePoint: InlineTokenizerSavePoint)
 
   companion object {
-    const val NOT_FOUND = -1
+    const val NONE = -1
     const val SKIP = -2
   }
 }
@@ -70,22 +67,18 @@ internal class TokenizerStateImpl : TokenizerState {
   private var inputIndex = 0
   private val ints = IntList()
 
-  override fun add(
+  override fun reserve(
       grammarId: Int,
-      grammarValue: Int,
-      rangeStartInclusive: Int,
-      rangeEndExclusive: Int,
-      numberOfChildren: Int,
       previousSiblingIndex: Int
   ): Int {
     val index = ints.size / BLOCK_SIZE
     ints += grammarId
-    ints += grammarValue
-    ints += rangeStartInclusive
-    ints += rangeEndExclusive
-    ints += numberOfChildren
-    ints += previousSiblingIndex
-    ints += TokenizerState.NOT_FOUND
+    ints += TokenizerState.NONE // grammarValue
+    ints += TokenizerState.NONE // rangeStartInclusive
+    ints += TokenizerState.NONE // rangeEndExclusive
+    ints += 0 // numberOfChildren
+    ints += previousSiblingIndex // previousSiblingIndex
+    ints += TokenizerState.NONE // nextSiblingIndex
     return index
   }
 
