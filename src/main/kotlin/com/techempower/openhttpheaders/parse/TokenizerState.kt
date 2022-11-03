@@ -10,6 +10,8 @@ internal interface TokenizerState {
       // Unique per grammar instance. Incremented from 0 using a static
       // AtomicInteger in the Grammar class.
       grammarId: Int,
+      // Refers to the start of the text the grammar matched
+      rangeStartInclusive: Int,
       previousSiblingIndex: Int
   ): Int
 
@@ -18,8 +20,7 @@ internal interface TokenizerState {
       // Used for things like the number of matches, or which a/b the OR
       // evaluated to, etc. Different meaning per grammar.
       grammarValue: Int,
-      // Refers to the start/end of the text the grammar matched
-      rangeStartInclusive: Int,
+      // Refers to the end of the text the grammar matched
       rangeEndExclusive: Int,
       // Always used to indicate the number of children following the grammar.
       numberOfChildren: Int,
@@ -55,6 +56,8 @@ internal interface TokenizerState {
 
   fun restore(savePoint: InlineTokenizerSavePoint)
 
+  fun restore(inputIndex: Int, blockIndex: Int)
+
   companion object {
     const val NONE = -1
     const val SKIP = -2
@@ -69,12 +72,13 @@ internal class TokenizerStateImpl : TokenizerState {
 
   override fun reserve(
       grammarId: Int,
+      rangeStartInclusive: Int,
       previousSiblingIndex: Int
   ): Int {
     val index = ints.size / BLOCK_SIZE
     ints += grammarId
     ints += TokenizerState.NONE // grammarValue
-    ints += TokenizerState.NONE // rangeStartInclusive
+    ints += rangeStartInclusive // rangeStartInclusive
     ints += TokenizerState.NONE // rangeEndExclusive
     ints += 0 // numberOfChildren
     ints += previousSiblingIndex // previousSiblingIndex
@@ -85,13 +89,11 @@ internal class TokenizerStateImpl : TokenizerState {
   override fun update(
       index: Int,
       grammarValue: Int,
-      rangeStartInclusive: Int,
       rangeEndExclusive: Int,
       numberOfChildren: Int,
   ) {
     val offsetIndex = offsetIndex(index)
     ints[offsetIndex + 1] = grammarValue
-    ints[offsetIndex + 2] = rangeStartInclusive
     ints[offsetIndex + 3] = rangeEndExclusive
     ints[offsetIndex + 4] = numberOfChildren
   }
@@ -161,8 +163,13 @@ internal class TokenizerStateImpl : TokenizerState {
     val value = savePoint.value
     val inputIndex = (value shr 32).toInt()
     val intSize = value.toInt()
-    setInputIndex(inputIndex)
     val blockIndex = intSize / BLOCK_SIZE
+    restore(inputIndex, blockIndex)
+  }
+
+  override fun restore(inputIndex: Int, blockIndex: Int) {
+    val intSize = blockIndex * BLOCK_SIZE
+    setInputIndex(inputIndex)
     if (isIndexPopulated(blockIndex)) {
       val previousSiblingIndex = getPreviousSiblingIndex(blockIndex)
       if (isIndexPopulated(blockIndex)) {

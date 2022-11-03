@@ -9,15 +9,17 @@ class TokenizerStateImplTest : FunSpec({
     val state = TokenizerStateImpl()
     state.reserve(
         grammarId = 2,
-        previousSiblingIndex = 17,
+        rangeStartInclusive = 8,
+        previousSiblingIndex = 17
     ) shouldBe 0
     state.reserve(
         grammarId = 22,
+        rangeStartInclusive = 14,
         previousSiblingIndex = 177,
     ) shouldBe 1
     state.getGrammarId(0) shouldBe 2
     state.getGrammarValue(0) shouldBe TokenizerState.NONE
-    state.getRangeStartInclusive(0) shouldBe TokenizerState.NONE
+    state.getRangeStartInclusive(0) shouldBe 8
     state.getRangeEndExclusive(0) shouldBe TokenizerState.NONE
     state.getNumberOfChildren(0) shouldBe 0
     state.getPreviousSiblingIndex(0) shouldBe 17
@@ -25,7 +27,7 @@ class TokenizerStateImplTest : FunSpec({
 
     state.getGrammarId(1) shouldBe 22
     state.getGrammarValue(1) shouldBe TokenizerState.NONE
-    state.getRangeStartInclusive(1) shouldBe TokenizerState.NONE
+    state.getRangeStartInclusive(1) shouldBe 14
     state.getRangeEndExclusive(1) shouldBe TokenizerState.NONE
     state.getNumberOfChildren(1) shouldBe 0
     state.getPreviousSiblingIndex(1) shouldBe 177
@@ -35,10 +37,12 @@ class TokenizerStateImplTest : FunSpec({
     val state = TokenizerStateImpl()
     state.reserve(
         grammarId = 2,
+        rangeStartInclusive = 8,
         previousSiblingIndex = 17,
     )
     state.reserve(
         grammarId = 22,
+        rangeStartInclusive = 14,
         previousSiblingIndex = 177,
     )
     // Sanity check
@@ -67,23 +71,23 @@ class TokenizerStateImplTest : FunSpec({
     val state = TokenizerStateImpl()
     val index1 = state.reserve(
         grammarId = 1,
+        rangeStartInclusive = 3,
         previousSiblingIndex = TokenizerState.NONE
     )
     state.update(
         index = index1,
         grammarValue = 2,
-        rangeStartInclusive = 3,
         rangeEndExclusive = 4,
         numberOfChildren = 5,
     )
     val index2 = state.reserve(
         grammarId = 5,
+        rangeStartInclusive = 11,
         previousSiblingIndex = 0
     )
     state.update(
         index = index2,
         grammarValue = 8,
-        rangeStartInclusive = 11,
         rangeEndExclusive = 14,
         numberOfChildren = 15,
     )
@@ -92,12 +96,12 @@ class TokenizerStateImplTest : FunSpec({
     val savePoint = state.save()
     val index3 = state.reserve(
         grammarId = 6,
+        rangeStartInclusive = 8,
         previousSiblingIndex = 1
     )
     state.update(
         index = index3,
         grammarValue = 7,
-        rangeStartInclusive = 8,
         rangeEndExclusive = 9,
         numberOfChildren = 0,
     )
@@ -170,10 +174,10 @@ class TokenizerStateImplTest : FunSpec({
     val state = TokenizerStateImpl()
     state.isIndexPopulated(0) shouldBe false
     state.isIndexPopulated(1) shouldBe false
-    state.reserve(1, TokenizerState.NONE)
+    state.reserve(1, TokenizerState.NONE, 2)
     state.isIndexPopulated(0) shouldBe true
     state.isIndexPopulated(1) shouldBe false
-    state.reserve(1, 2)
+    state.reserve(1, 2, 3)
     state.isIndexPopulated(0) shouldBe true
     state.isIndexPopulated(1) shouldBe true
     state.isIndexPopulated(2) shouldBe false
@@ -182,23 +186,23 @@ class TokenizerStateImplTest : FunSpec({
     val state = TokenizerStateImpl()
     val index1 = state.reserve(
         grammarId = 2,
+        rangeStartInclusive = 8,
         previousSiblingIndex = TokenizerState.NONE
     )
     state.update(
         index = index1,
         grammarValue = 5,
-        rangeStartInclusive = 8,
         rangeEndExclusive = 11,
         numberOfChildren = 15,
     )
     val index2 = state.reserve(
         grammarId = 22,
+        rangeStartInclusive = 88,
         previousSiblingIndex = 0
     )
     state.update(
         index = index2,
         grammarValue = 55,
-        rangeStartInclusive = 88,
         rangeEndExclusive = 111,
         numberOfChildren = 155,
     )
@@ -225,14 +229,13 @@ class TokenizerStateImplTest : FunSpec({
     state.update(
         index = 0,
         grammarValue = 3,
-        rangeStartInclusive = 5,
         rangeEndExclusive = 18,
         numberOfChildren = 19
     )
 
     state.getGrammarId(0) shouldBe 2
     state.getGrammarValue(0) shouldBe 3
-    state.getRangeStartInclusive(0) shouldBe 5
+    state.getRangeStartInclusive(0) shouldBe 8
     state.getRangeEndExclusive(0) shouldBe 18
     state.getNumberOfChildren(0) shouldBe 19
     state.getPreviousSiblingIndex(0) shouldBe TokenizerState.NONE
@@ -241,14 +244,13 @@ class TokenizerStateImplTest : FunSpec({
     state.update(
         index = 1,
         grammarValue = 33,
-        rangeStartInclusive = 55,
         rangeEndExclusive = 188,
         numberOfChildren = 199
     )
 
     state.getGrammarId(1) shouldBe 22
     state.getGrammarValue(1) shouldBe 33
-    state.getRangeStartInclusive(1) shouldBe 55
+    state.getRangeStartInclusive(1) shouldBe 88
     state.getRangeEndExclusive(1) shouldBe 188
     state.getNumberOfChildren(1) shouldBe 199
     state.getPreviousSiblingIndex(1) shouldBe 0
@@ -258,7 +260,6 @@ class TokenizerStateImplTest : FunSpec({
       state.update(
           index = 2,
           grammarValue = 0,
-          rangeStartInclusive = 0,
           rangeEndExclusive = 0,
           numberOfChildren = 0
       )
@@ -273,22 +274,24 @@ class TokenizerStateImplTest : FunSpec({
     // Parent grammar adds itself before checking to see if any children match
     val parentIndex = state.reserve(
         grammarId = 2,
+        rangeStartInclusive = 10,
         previousSiblingIndex = TokenizerState.NONE
     )
     // Child #1 matches
     val child1Index = state.reserve(
         grammarId = 7,
+        rangeStartInclusive = 10,
         previousSiblingIndex = TokenizerState.NONE
     )
     // Grandchild 1, should be skipped over
     val grandChild1Index = state.reserve(
         grammarId = 8,
+        rangeStartInclusive = 10,
         previousSiblingIndex = TokenizerState.NONE
     )
     state.update(
         index = grandChild1Index,
         grammarValue = 8,
-        rangeStartInclusive = 10,
         rangeEndExclusive = 18,
         numberOfChildren = 0,
     )
@@ -296,24 +299,24 @@ class TokenizerStateImplTest : FunSpec({
     state.update(
         index = child1Index,
         grammarValue = 8,
-        rangeStartInclusive = 10,
         rangeEndExclusive = 18,
         numberOfChildren = 1
     )
     // Child #1 matches
     val child2Index = state.reserve(
         grammarId = 9,
+        rangeStartInclusive = 18,
         previousSiblingIndex = child1Index
     )
     // Grandchild 2, should be skipped over
     val grandChild2Index = state.reserve(
         grammarId = 13,
+        rangeStartInclusive = 18,
         previousSiblingIndex = TokenizerState.NONE
     )
     state.update(
         index = grandChild2Index,
         grammarValue = 5,
-        rangeStartInclusive = 18,
         rangeEndExclusive = 23,
         numberOfChildren = 0,
     )
@@ -321,7 +324,6 @@ class TokenizerStateImplTest : FunSpec({
     state.update(
         index = child2Index,
         grammarValue = 5,
-        rangeStartInclusive = 18,
         rangeEndExclusive = 23,
         numberOfChildren = 1
     )
@@ -331,7 +333,6 @@ class TokenizerStateImplTest : FunSpec({
     state.update(
         index = parentIndex,
         grammarValue = 2,
-        rangeStartInclusive = 10,
         rangeEndExclusive = 23,
         numberOfChildren = 2
     )
