@@ -11,7 +11,7 @@ import com.techempower.openhttpheaders.wip.parse.plus
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 
-class GrammarTest : FunSpec({
+class GrammarFormatTest : FunSpec({
   test("should compile") {
 
     data class Header(val key: String, val value: String)
@@ -34,11 +34,11 @@ class GrammarTest : FunSpec({
     val ESCAPE_PAIR = ('\\' + (QUOTE_CHAR / ' ' / '\"').group("escaped_char"))
         // Instead of returning the whole match as its value, only return the escaped character.
         // For example, instead of returning \", it would just return "
-        .transform { it["escaped_char"].value!! }
+        .transform { it["escaped_char"]!! }
     val QUOTED_VALUE =
         ('\"' + (0.orMore(QUOTE_CHAR / ESCAPE_PAIR)).group("quote_content") + '\"')
             // Only include the content inside the quotes for the value
-            .transform { it["quote_content"].value!! }
+            .transform { it["quote_content"]!! }
     val T_CHAR = charMatcher { anyOf("abc") }
     val TOKEN = 1.orMore(T_CHAR)
     val KEY = TOKEN
@@ -48,8 +48,8 @@ class GrammarTest : FunSpec({
         (KEY.group("key") + OWS + '=' + OWS + (TOKEN / QUOTED_VALUE).group("value"))
             .capture {
               Header(
-                  key = it["key", KEY].value!!.str,
-                  value = it["value"].value!!
+                  key = it["key", KEY]!!.str,
+                  value = it["value"]!!
               )
             }
 

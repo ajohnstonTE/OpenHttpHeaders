@@ -1,7 +1,7 @@
 package com.techempower.openhttpheaders.parse
 
 @JvmInline
-internal value class InlineTokenizerSavePoint(val value: Long)
+internal value class TokenizerSavePoint(val value: Long)
 
 internal interface TokenizerState {
   // Returns the index of the block added. Can be used to modify/retrieve
@@ -52,9 +52,9 @@ internal interface TokenizerState {
 
   fun getNthChildIndex(parentIndex: Int, childIndexFromParent: Int): Int
 
-  fun save(): InlineTokenizerSavePoint
+  fun save(): TokenizerSavePoint
 
-  fun restore(savePoint: InlineTokenizerSavePoint)
+  fun restore(savePoint: TokenizerSavePoint)
 
   fun restore(inputIndex: Int, blockIndex: Int)
 
@@ -149,16 +149,16 @@ internal class TokenizerStateImpl : TokenizerState {
 
   private fun offsetIndex(index: Int) = BLOCK_SIZE * index
 
-  override fun save(): InlineTokenizerSavePoint {
+  override fun save(): TokenizerSavePoint {
     // Two ints to a long based on https://stackoverflow.com/a/12772968
     val inputIndex = getInputIndex()
     val intsSize = ints.size
     val value = (inputIndex.toLong() shl 32) or
         (intsSize.toLong() and 0xffffffffL)
-    return InlineTokenizerSavePoint(value)
+    return TokenizerSavePoint(value)
   }
 
-  override fun restore(savePoint: InlineTokenizerSavePoint) {
+  override fun restore(savePoint: TokenizerSavePoint) {
     // Two ints from a long based on https://stackoverflow.com/a/12772968
     val value = savePoint.value
     val inputIndex = (value shr 32).toInt()
@@ -172,7 +172,7 @@ internal class TokenizerStateImpl : TokenizerState {
     setInputIndex(inputIndex)
     if (isIndexPopulated(blockIndex)) {
       val previousSiblingIndex = getPreviousSiblingIndex(blockIndex)
-      if (isIndexPopulated(blockIndex)) {
+      if (isIndexPopulated(previousSiblingIndex)) {
         setNextSiblingIndex(previousSiblingIndex, -1)
       }
     }

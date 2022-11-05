@@ -81,8 +81,11 @@ class IntList {
    *         (`index < 0 || index >= size`)
    */
   fun truncate(index: Int) {
-    if (index >= listSize) {
+    if (index > listSize) {
       throw IndexOutOfBoundsException(index)
+    }
+    if (index == listSize) {
+      return // No-op. It's already the correct size.
     }
     // No need to reduce the size of the backing array, just change `listSize`
     // in order to consider all elements after `listSize` unpopulated.

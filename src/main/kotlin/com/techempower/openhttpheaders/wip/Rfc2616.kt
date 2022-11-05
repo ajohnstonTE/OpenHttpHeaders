@@ -78,13 +78,13 @@ internal class Rfc2616 {
         }
       }
       val QUOTED_PAIR = ('\\' + CHAR.group("char"))
-          .transform { it["char"].value!! }
+          .transform { it["char"]!! }
       // Note: QUOTED_PAIR MUST be captured before QD_TEXT, as it is
       // technically a valid and capture-able QD_TEXT value, but SHOULD be
       // interpreted as a quoted pair.
       QUOTED_STRING =
           ('\"' + 0.orMore(QUOTED_PAIR / QD_TEXT).group("quoted_value") + '\"')
-              .transform { it["quoted_value"].value!! }
+              .transform { it["quoted_value"]!! }
       // https://www.rfc-editor.org/rfc/rfc2616#section-3.6
       VALUE = TOKEN / QUOTED_STRING
     }

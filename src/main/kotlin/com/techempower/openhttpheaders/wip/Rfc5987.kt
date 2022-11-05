@@ -28,12 +28,12 @@ internal class Rfc5987 {
       val VALUE_CHARS = 0.orMore(Rfc3986.PCT_ENCODED / ATTR_CHAR)
       EXT_VALUE = (!CHARSET + '\'' + optional(!LANGUAGE) + '\'' + !VALUE_CHARS)
           .capture {
-            val value = it[VALUE_CHARS].value!!
-            val charset = Charset.forName(it[CHARSET].value!!)
+            val value = it[VALUE_CHARS]!!
+            val charset = Charset.forName(it[CHARSET]!!)
             ExtValue(
                 value = URLDecoder.decode(value, charset),
                 charset = charset,
-                lang = it[LANGUAGE].value
+                lang = it[LANGUAGE]
             )
           }
     }

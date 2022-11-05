@@ -18,7 +18,7 @@ internal class Rfc6266 {
     init {
       val OWS = optional(Rfc2616.LWS)
       val EXT_TOKEN = (!Rfc2616.TOKEN + '*')
-          .transform { it[Rfc2616.TOKEN].value!! }
+          .transform { it[Rfc2616.TOKEN]!! }
       // For simplicity, filename-parm is left out as it's completely covered
       // by DISP_EXT_PARM
       // Note: EXT_TOKEN/EXT_VALUE MUST be captured first otherwise it will
@@ -34,10 +34,10 @@ internal class Rfc6266 {
           ((!EXT_TOKEN + OWS + '=' + OWS + !Rfc5987.EXT_VALUE)
               / (!Rfc2616.TOKEN + OWS + '=' + OWS + !Rfc2616.VALUE))
               .capture {
-                if (it[EXT_TOKEN].value != null) {
-                  val extValue = it[Rfc5987.EXT_VALUE].value!!
+                if (it[EXT_TOKEN] != null) {
+                  val extValue = it[Rfc5987.EXT_VALUE]!!
                   ContentDispositionHeader.Parameter(
-                      key = it[EXT_TOKEN].value!!,
+                      key = it[EXT_TOKEN]!!,
                       value = extValue.value,
                       charset = extValue.charset,
                       lang = extValue.lang,
@@ -45,8 +45,8 @@ internal class Rfc6266 {
                   )
                 } else {
                   ContentDispositionHeader.Parameter(
-                      key = it[Rfc2616.TOKEN].value!!,
-                      value = it[Rfc2616.VALUE].value!!,
+                      key = it[Rfc2616.TOKEN]!!,
+                      value = it[Rfc2616.VALUE]!!,
                       // The charset for non-ext values is ISO-LATIN-1, aka ISO/IEC 8859-1
                       charset = Charsets.ISO_8859_1,
                       lang = null,
@@ -62,7 +62,7 @@ internal class Rfc6266 {
           (!DISPOSITION_TYPE + 0.orMore(OWS + ';' + OWS + !DISPOSITION_PARM))
               .capture {
                 ContentDispositionHeader(
-                    dispositionType = it[DISPOSITION_TYPE].value!!,
+                    dispositionType = it[DISPOSITION_TYPE]!!,
                     parameters = it.values(DISPOSITION_PARM)
                 )
               }

@@ -41,16 +41,16 @@ internal class Rfc7231 {
               // Instead of returning the whole match as its value, only return
               // the escaped character. For example, instead of returning \",
               // it would just return "
-              .transform { it["escaped_char"].value!! }
+              .transform { it["escaped_char"]!! }
       val T_CHAR = '!' / '#' / '$' / '%' / '&' / '\'' / '*' / '+' / '-' /
           '.' / '^' / '_' / '`' / '|' / '~' / Rfc7230.DIGIT / Rfc7230.ALPHA
       val QUOTED_STRING =
           ('\"' + 0.orMore(QUOTED_PAIR / QD_TEXT).group("quoted_value") + '\"')
               // Only include the content inside the quotes for the value
-              .transform { it["quoted_value"].value!! }
+              .transform { it["quoted_value"]!! }
       val TOKEN = 1.orMore(T_CHAR)
       val PARAMETER = (!TOKEN + '=' + (QUOTED_STRING / TOKEN).group("value"))
-          .capture { it[TOKEN].value!!.lowercase() to it["value"].value!! }
+          .capture { it[TOKEN]!!.lowercase() to it["value"]!! }
       // TODO CURRENT: copy should probably return an actual copy so that
       //  capture grammars don't get messed up for refs when copied.
       //  Note: This is done, but it needs tests. While testing, temporarily
@@ -65,8 +65,8 @@ internal class Rfc7231 {
                     .lowercase()
                 val quality = parameters[qValueKey]?.toDouble()
                 MediaType(
-                    type = it[TYPE].value!!,
-                    subtype = it[SUBTYPE].value!!,
+                    type = it[TYPE]!!,
+                    subtype = it[SUBTYPE]!!,
                     parameters = parameters,
                     quality = quality
                 )
