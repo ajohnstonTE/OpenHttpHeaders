@@ -2,7 +2,7 @@
 // includes many variations of functions for completeness.
 @file:Suppress("unused")
 
-package com.techempower.openhttpheaders.wip.parse
+package com.techempower.openhttpheaders.parse
 
 import com.techempower.openhttpheaders.parse.AndThenGrammar
 import com.techempower.openhttpheaders.parse.CharMatcher

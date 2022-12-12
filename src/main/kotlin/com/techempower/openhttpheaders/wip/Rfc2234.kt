@@ -7,7 +7,7 @@
 package com.techempower.openhttpheaders.wip
 
 import com.techempower.openhttpheaders.parse.charMatcher
-import com.techempower.openhttpheaders.wip.parse.div
+import com.techempower.openhttpheaders.parse.div
 
 internal class Rfc2234 {
   companion object {

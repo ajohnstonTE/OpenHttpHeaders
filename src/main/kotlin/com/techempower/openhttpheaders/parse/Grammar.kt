@@ -5,6 +5,30 @@ import java.util.concurrent.atomic.AtomicInteger
 
 // TODO CURRENT: Probably a good idea to use CharSpan here.
 
+// TODO: For the possible eventual large file support, add a function named
+//  `stream` which would be similar to `capture` but also similar to `x.oMore`.
+//  Stream would make it so that it does parse its children, but it does so by
+//  matching a child, and if it matches then it allows the child to do any
+//  captures and runs the stream function once for it, then moves on to the
+//  next match for the children. It would *not* support back-off/retry. Instead
+//  it would work off of relative indexes and most likely use an implementation
+//  of TokenizerState that relies on a wraparound list, where it maintains the
+//  ability to reference children by relative index, but simply wraps around to
+//  the beginning list if the index is out of bounds. "Out of bounds" would
+//  instead refer to space in the list that is not currently populated. This
+//  would allow it to avoid deleting elements from the list after one child has
+//  finished, and can instead just keep writing forward. Or maybe it should
+//  just truncate the child element after it completes and start fresh at the
+//  beginning, with the existing tokenizer state class. Consider all options.
+//  Either way, this likely would not be a grammar, as it would be potentially
+//  difficult to have nested streamable grammars. Consider what this would look
+//  like as well, maybe it's possible. Anyways, the benefit of this would be
+//  that by no longer needing the child's index from the perspective of the
+//  stream parent, it doesn't matter if there are more than max int children,
+//  because those indexes aren't being used anyways. And furthermore, it would
+//  likely only use as much memory is required to store the largest single
+//  child found while parsing.
+
 internal abstract class Grammar<T> {
   internal val id: Int = idSource.incrementAndGet()
 

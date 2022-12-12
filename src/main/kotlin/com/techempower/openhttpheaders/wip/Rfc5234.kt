@@ -12,5 +12,8 @@ internal class Rfc5234 {
     val DIGIT = charMatcher {
       range('0'..'9')
     }
+
+    // Any visible USASCII character
+    val V_CHAR = charMatcher { range('!'..'~') }
   }
 }

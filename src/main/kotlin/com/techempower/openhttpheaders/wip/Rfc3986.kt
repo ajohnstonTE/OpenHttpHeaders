@@ -2,7 +2,7 @@
 
 package com.techempower.openhttpheaders.wip
 
-import com.techempower.openhttpheaders.wip.parse.plus
+import com.techempower.openhttpheaders.parse.plus
 
 internal class Rfc3986 {
   companion object {
