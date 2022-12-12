@@ -45,6 +45,7 @@ internal class Rfc7231 {
                   quality = quality
               )
             }
+    // https://www.rfc-editor.org/rfc/rfc7231#section-5.3.2
     val ACCEPT =
         `#`(!MEDIA_TYPE)
             .capture { AcceptHeader(it.values(MEDIA_TYPE)) }
